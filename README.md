@@ -5,4 +5,4 @@ cd wera-chap-chap/frontend/wera-frontend
 
 pnpm install
 
-git checkout <branch name>
+git checkout <branch>
