@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
+# from decouple import config
+from django.conf.global_settings import MEDIA_URL, CACHES
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,10 +40,34 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+     # Third PArty
+    'corsheaders',
+    'rest_framework',
+    'rest_framework.simplejwt',
+    'django_filters',
+    'drf_spectacular',
+    'django_celery_beat',
+    'django_celery_results',
+
+
+    # Local apps
+    'users',
+    'tasks',
+    'payments',
+    'wallets',
+    'reviews',
+    'notifications',
+    'kyc',
+
+
+
+
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -73,12 +100,24 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': config('DB_NAME', default='wera_db'),
+#         'USER': config('DB_USER', default='root'),
+#         'PASSWORD': config('DB_PASSWORD', default='(123@Ceasar!)'),
+#         'HOST': config('DB_HOST', default='localhost'),
+#         'PORT': config('DB_PORT', default='3306'),
+#         'OPTIONS': {
+#             'charset': 'utf8',
+#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+#         }
+#     }
+# }
+
+
+# Custom USer model
+# AUTH_USER_MODEL = 'users.User'
 
 
 # Password validation
@@ -116,8 +155,110 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+# MEDIA_URL = 'media/'
+# MEDIA_ROOT = BASE_DIR / 'media'
+
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# REST Framework
+# REST_FRAMEWORK = {
+#     'DEFAULT_AUTHENTICATION_CLASSES': [
+#         'rest_framework_simplejwt.authentication.JWTAuthentication',
+#         'rest_framework.authentication.SessionAuthentication',
+#     ],
+#     'DEFAULT_PERMISSION_CLASSES': [
+#         'rest_framework.permissions.IsAuthenticated',
+#     ],
+#     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+#     'PAGE_SIZE': 20,
+#     'DEFAULT_FILTER_BACKENDS': [
+#         'django_filters.rest_framework.DjangoFilterBackend',
+#         'rest_framework.filters.SearchFilter',
+#         'rest_framework.filters.OrderingFilter',
+#     ],
+#     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+#     'DEFAULT_THROTTLE_CLASSES': [
+#         'rest_framework.throttling.AnonRateThrottle',
+#         'rest_framework.throttling.UserRateThrottle',
+#     ],
+#     'DEFAULT_THROTTLE_RATES': {
+#         'anon': '100/hour',
+#         'user': '1000/hour',
+#     }
+# }
+
+# JWT Settings
+# SIMPLE_JWT = {
+#     'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),
+#     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+#     'ROTATE_REFRESH_TOKENS': False,
+#     'BLACKLIST_AFTER_ROTATION': True,
+#     'ALGORITHM': 'HS256',
+#     'SIGNING_KEY': SECRET_KEY,
+#     'AUTH_HEADER_TYPES': ('Bearer',),
+# }
+
+
+# CORS Settings
+# CORS_ALLOWED_ORIGINS = config(
+#     'CORS_ALLOWED_ORIGINS',
+#      default="http://localhost:3000, http://localhost:5173",
+# ).split(',')
+# CORS_ALLOW_CREDENTIALS = True
+#
+# # Celery Configs
+# CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+# CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+# CELERY_ACCEPT_CONTENT = ['json']
+# CELERY_TASK_SERIALIZER = 'json'
+# CELERY_RESULT_SERIALIZER = 'json'
+# CELERY_TIMEZONE = config('CELERY_TIMEZONE', default='UTC')
+# CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+#
+# #Redis Cache
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+#         'LOCATION': config('REDIS_URL', default='redis://localhost:6379/1'),
+#     }
+# }
+#
+#
+# # Mpesa configs
+# MPESA_ENVIRONMENT = config('MPESA_ENVIRONMENT', default='local')
+# MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY', default='')
+# MPESA_SECRET_KEY = config('MPESA_SECRET_KEY', default='')
+# MPESA_SHORTCODE = config('MPESA_SHORTCODE', default='')
+# MPESA_PASSKEY = config('MPESA_PASSKEY', default='')
+# MPESA_CALLBACK_URL = config('MPESA_CALLBACK_URL', default='')
+# MPESA_INITIATOR_NAME = config('MPESA_INITIATOR_NAME', default='')
+# MPESA_SECURITY_CREDENTIAL = config('MPESA_SECURITY_CREDENTIAL', default='')
+#
+#
+# # Twilio Configs
+# TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID', default='')
+# TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN', default='')
+# TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default='')
+#
+# # Email Config
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+# EMAIL_PORT = config('EMAIL_PORT', default='587')
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+# EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+# DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='')
+
+
+
+# DRF settings
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Wera Chap Chap API',
+    'DESCRIPTION': 'Errand Management System',
+}
