@@ -118,7 +118,7 @@ class TaskApplication(models.Model):
         return f"{self.runner.username} -> {self.task.title}"
 
 
-class USerService(models.Model):
+class UserService(models.Model):
     runner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
