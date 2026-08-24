@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #D4500A;
+  --color-brand-secondary: #F5A623;
+  --color-brand-dark: #1A1A1A;
+  --color-brand-charcoal: #2D2D2D;
+  --color-brand-cream: #FAF7F2;
+  --color-brand-muted: #8C7B6E;
+  --color-brand-surface: #FFFFFF;
+  --color-brand-border: #E8DDD4;
+  --font-display: "Fraunces", serif;
+  --font-body: "Outfit", sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-brand-cream font-body text-brand-charcoal antialiased;
+  }
+
+  h1 {
+    @apply font-display font-black tracking-tight text-brand-dark;
+  }
+
+  h2,
+  h3 {
+    @apply font-display font-bold text-brand-dark;
+  }
+
+  button,
+  input,
+  textarea,
+  select,
+  label {
+    @apply font-body;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded-2xl bg-brand-primary px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-primary/30 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-primary/90 hover:shadow-xl active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply rounded-2xl border-2 border-brand-dark px-8 py-4 text-lg font-semibold text-brand-dark transition-all duration-200 hover:bg-brand-dark hover:text-white active:scale-95;
+  }
+
+  .btn-dark {
+    @apply rounded-xl bg-brand-dark px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary;
+  }
+
+  .card {
+    @apply rounded-3xl border border-brand-border bg-brand-surface p-6 shadow-sm;
+  }
+
+  .input {
+    @apply w-full rounded-2xl border-2 border-brand-border bg-white px-4 py-3 font-body text-brand-dark outline-none transition-all placeholder:text-brand-muted focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10;
+  }
+
+  .section-label {
+    @apply font-body text-xs font-semibold uppercase tracking-[0.2em] text-brand-primary;
+  }
+
+  .dashboard-stat {
+    @apply rounded-3xl border border-brand-border bg-white p-6 shadow-sm;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.5s ease forwards;
+}
+
+.animate-fade-up-delay-1 {
+  animation-delay: 0.1s;
+  animation-fill-mode: forwards;
+  opacity: 0;
+}
+
+.animate-fade-up-delay-2 {
+  animation-delay: 0.2s;
+  animation-fill-mode: forwards;
+  opacity: 0;
+}
+
+.animate-fade-up-delay-3 {
+  animation-delay: 0.3s;
+  animation-fill-mode: forwards;
+  opacity: 0;
+}
