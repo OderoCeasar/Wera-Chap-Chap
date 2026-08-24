@@ -1,0 +1,15 @@
+# Development image: Air rebuilds on save against the source bind-mounted by
+# docker compose. The production image is the multi-stage build in ./Dockerfile,
+# which compiles once and ships a static binary with no toolchain.
+FROM golang:1.23-alpine
+
+WORKDIR /app
+RUN apk add --no-cache git
+RUN go install github.com/air-verse/air@v1.61.7
+
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+
+EXPOSE 8080
+CMD ["air", "-c", ".air.toml"]

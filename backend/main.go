@@ -1,129 +1,63 @@
 package main
 
 import (
+	"context"
 	"log"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"wera-chap-chap/backend/api"
 	"wera-chap-chap/backend/config"
-	"wera-chap-chap/backend/handlers"
-	"wera-chap-chap/backend/middleware"
-	"wera-chap-chap/backend/models"
+	db "wera-chap-chap/backend/db/sqlc"
+	"wera-chap-chap/backend/db_migrator"
+	"wera-chap-chap/backend/seed"
 	chat "wera-chap-chap/backend/websocket"
 )
 
+// main is the composition root: it loads configuration, opens the pool, brings
+// the schema up to date, builds the store and the server, and starts listening.
+// Nothing else in the program constructs its own dependencies, so the wiring is
+// readable in one place and a test can substitute any piece of it.
 func main() {
-	cfg := config.Load()
-	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{})
+	ctx := context.Background()
+
+	cfg, err := config.LoadConfig(".")
 	if err != nil {
-		log.Fatalf("connect database: %v", err)
+		log.Fatalf("cannot load config: %v", err)
 	}
-	if err := db.AutoMigrate(
-		&models.User{}, &models.TaskerProfile{}, &models.Category{}, &models.TaskerSkill{},
-		&models.TaskerAvailability{}, &models.Task{}, &models.TaskApplication{},
-		&models.Booking{}, &models.Message{}, &models.Review{}, &models.Payment{},
-	); err != nil {
-		log.Fatalf("migrate database: %v", err)
+
+	// The JWT secret is symmetric: whoever holds it can mint a token for any
+	// user id and role. The compose default and the .env.example placeholder
+	// are both public -- they live in this repo -- so booting a real
+	// environment with either means anyone who read the source can forge a
+	// session. Fail fast rather than serve forgeable tokens.
+	if !cfg.IsLocalEnv() && cfg.HasInsecureJWTSecret() {
+		log.Fatal("JWT_SECRET is a known public/default value; set a unique secret before starting in this environment")
 	}
-	seedCategories(db)
-	seedDemoData(db)
+
+	connPool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("cannot connect to database: %v", err)
+	}
+	defer connPool.Close()
+
+	if err := db_migrator.RunDBMigration(cfg); err != nil {
+		log.Fatalf("cannot run db migration: %v", err)
+	}
+
+	store := db.NewStore(connPool)
+	seed.Run(ctx, store, cfg)
 
 	hub := chat.NewHub()
 	go hub.Run()
 
-	router := gin.Default()
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{cfg.FrontendOrigin},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Authorization", "Content-Type"},
-		AllowCredentials: true,
-	}))
-
-	auth := handlers.NewAuthHandler(db, cfg)
-	users := handlers.NewUserHandler(db)
-	taskers := handlers.NewTaskerHandler(db)
-	tasks := handlers.NewTaskHandler(db)
-	bookings := handlers.NewBookingHandler(db)
-	messages := handlers.NewMessageHandler(db, hub)
-	reviews := handlers.NewReviewHandler(db)
-	payments := handlers.NewPaymentHandler(db, cfg)
-
-	api := router.Group("/api")
-	api.GET("/health", func(c *gin.Context) { c.JSON(200, gin.H{"status": "ok"}) })
-	authGroup := api.Group("/auth")
-	authGroup.Use(middleware.AuthRateLimit())
-	authGroup.POST("/register", auth.Register)
-	authGroup.POST("/login", auth.Login)
-	authGroup.POST("/refresh", auth.Refresh)
-	authGroup.POST("/logout", auth.Logout)
-
-	api.GET("/categories", handlers.ListCategories(db))
-	api.GET("/taskers", taskers.List)
-	api.GET("/taskers/:id", taskers.Get)
-	// Provider webhook: authenticated by the checkout id it echoes back.
-	api.POST("/payments/mpesa/callback", payments.MpesaCallback)
-
-	protected := api.Group("")
-	protected.Use(middleware.JWT(cfg.JWTSecret))
-	protected.GET("/users/me", users.Me)
-	protected.PUT("/users/me", users.UpdateMe)
-	protected.PUT("/users/me/password", users.ChangePassword)
-	protected.GET("/taskers/me", middleware.RequireRole(models.RoleTasker), taskers.Me)
-	protected.PUT("/taskers/profile", middleware.RequireRole(models.RoleTasker), taskers.UpdateProfile)
-	protected.POST("/taskers/availability", middleware.RequireRole(models.RoleTasker), taskers.SetAvailability)
-	protected.GET("/taskers/me/bookings", middleware.RequireRole(models.RoleTasker), taskers.MyBookings)
-	protected.GET("/taskers/me/applications", middleware.RequireRole(models.RoleTasker), taskers.MyApplications)
-
-	protected.POST("/tasks", middleware.RequireRole(models.RoleClient), tasks.Create)
-	protected.GET("/tasks", tasks.List)
-	protected.GET("/tasks/my", middleware.RequireRole(models.RoleClient), tasks.MyTasks)
-	protected.GET("/tasks/:id", tasks.Get)
-	protected.PUT("/tasks/:id", middleware.RequireRole(models.RoleClient), tasks.Update)
-	protected.DELETE("/tasks/:id", middleware.RequireRole(models.RoleClient), tasks.Cancel)
-	protected.POST("/tasks/:id/apply", middleware.RequireRole(models.RoleTasker), tasks.Apply)
-	protected.PUT("/tasks/:id/applications/:app_id/accept", middleware.RequireRole(models.RoleClient), tasks.AcceptApplication)
-	protected.PUT("/tasks/:id/applications/:app_id/reject", middleware.RequireRole(models.RoleClient), tasks.RejectApplication)
-	protected.POST("/tasks/:id/matches", middleware.RequireRole(models.RoleClient), tasks.Matches)
-
-	protected.GET("/bookings", bookings.List)
-	protected.GET("/bookings/:id", bookings.Get)
-	protected.PUT("/bookings/:id/start", middleware.RequireRole(models.RoleTasker), bookings.Start)
-	protected.PUT("/bookings/:id/complete", middleware.RequireRole(models.RoleTasker), bookings.Complete)
-	protected.PUT("/bookings/:id/cancel", bookings.Cancel)
-
-	protected.GET("/messages/booking/:booking_id", messages.History)
-	protected.POST("/messages/booking/:booking_id", messages.Send)
-	protected.GET("/reviews/tasker/:tasker_id", reviews.ForTasker)
-	protected.GET("/reviews/booking/:booking_id", reviews.ForBooking)
-	protected.POST("/reviews/booking/:booking_id", reviews.Create)
-	protected.POST("/payments/booking/:booking_id/initiate", payments.Initiate)
-	protected.POST("/payments/booking/:booking_id/confirm", payments.Confirm)
-	protected.POST("/payments/booking/:booking_id/tip", payments.Tip)
-	protected.GET("/payments/booking/:booking_id", payments.Get)
-
-	router.GET("/ws/booking/:booking_id", middleware.WSJWT(cfg.JWTSecret), messages.WebSocket)
+	server, err := api.NewServer(cfg, store, hub)
+	if err != nil {
+		log.Fatalf("cannot create server: %v", err)
+	}
 
 	log.Printf("Wera Chap Chap backend listening on %s", cfg.Addr())
-	if err := router.Run(cfg.Addr()); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func seedCategories(db *gorm.DB) {
-	categories := []models.Category{
-		{Name: "Home Repairs", IconURL: "🛠️", Description: "Fixes, maintenance and odd jobs around the home."},
-		{Name: "Furniture Assembly", IconURL: "🪑", Description: "Flat-pack and custom furniture assembly."},
-		{Name: "Cleaning", IconURL: "🧽", Description: "Home, office and post-event cleaning."},
-		{Name: "Moving", IconURL: "🚚", Description: "Packing, lifting and relocation help."},
-		{Name: "Delivery & Errands", IconURL: "🛵", Description: "Fast errands and item delivery."},
-		{Name: "Yard Work", IconURL: "🌿", Description: "Gardening, mowing and outdoor cleanup."},
-		{Name: "Personal Assistant", IconURL: "📋", Description: "Admin, scheduling and personal support."},
-		{Name: "Handyman", IconURL: "🔧", Description: "General repairs and skilled help."},
-	}
-	for _, category := range categories {
-		db.FirstOrCreate(&category, models.Category{Name: category.Name})
+	if err := server.Start(cfg.Addr()); err != nil {
+		log.Fatalf("cannot start server: %v", err)
 	}
 }

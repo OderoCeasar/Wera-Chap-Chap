@@ -2,25 +2,24 @@ package websocket
 
 import (
 	"encoding/json"
-	"strconv"
 
 	"github.com/gorilla/websocket"
 )
 
 type Event struct {
-	BookingID uint        `json:"booking_id"`
+	BookingID int64       `json:"booking_id"`
 	Payload   interface{} `json:"payload"`
 }
 
 type Client struct {
 	Hub       *Hub
-	BookingID uint
+	BookingID int64
 	Conn      *websocket.Conn
 	Send      chan []byte
 }
 
 type Hub struct {
-	rooms      map[uint]map[*Client]bool
+	rooms      map[int64]map[*Client]bool
 	register   chan *Client
 	unregister chan *Client
 	broadcast  chan Event
@@ -28,7 +27,7 @@ type Hub struct {
 
 func NewHub() *Hub {
 	return &Hub{
-		rooms:      make(map[uint]map[*Client]bool),
+		rooms:      make(map[int64]map[*Client]bool),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		broadcast:  make(chan Event),
@@ -72,11 +71,6 @@ func (h *Hub) Run() {
 
 func (h *Hub) Register(client *Client)   { h.register <- client }
 func (h *Hub) Unregister(client *Client) { h.unregister <- client }
-func (h *Hub) Broadcast(bookingID uint, payload interface{}) {
+func (h *Hub) Broadcast(bookingID int64, payload interface{}) {
 	h.broadcast <- Event{BookingID: bookingID, Payload: payload}
-}
-
-func ParseUint(value string) uint {
-	parsed, _ := strconv.ParseUint(value, 10, 64)
-	return uint(parsed)
 }

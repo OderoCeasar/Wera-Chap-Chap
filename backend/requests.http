@@ -1,0 +1,202 @@
+### Wera Chap Chap API scratchpad.
+### Run the stack, then send these top to bottom -- each @name capture feeds the
+### requests below it.
+
+@base = http://localhost:8080/api
+
+### Health
+GET {{base}}/health
+
+### Register a client
+# @name registerClient
+POST {{base}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "client@example.com",
+  "password": "password123",
+  "full_name": "Daniel Kimani",
+  "phone": "+254711000000",
+  "role": "client"
+}
+
+### Log in as a seeded tasker (SEED_DEMO=true)
+# @name loginTasker
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "amina@example.com",
+  "password": "password123"
+}
+
+@clientToken = {{registerClient.response.body.access_token}}
+@clientRefresh = {{registerClient.response.body.refresh_token}}
+@taskerToken = {{loginTasker.response.body.access_token}}
+
+### Trade a refresh token for a fresh access token
+POST {{base}}/auth/refresh
+Content-Type: application/json
+
+{ "refresh_token": "{{clientRefresh}}" }
+
+### Who am I
+GET {{base}}/users/me
+Authorization: Bearer {{clientToken}}
+
+### Update my profile (omitted fields are left alone)
+PUT {{base}}/users/me
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{ "phone": "+254799000111" }
+
+### Categories (reference data, from migration 000002)
+GET {{base}}/categories
+
+### Tasker directory, with every filter applied
+GET {{base}}/taskers?category_id=3&max_rate=2000&min_rating=0&q=clean
+
+### One tasker, with skills and availability
+GET {{base}}/taskers/1
+
+### Post a task
+# @name createTask
+POST {{base}}/tasks
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "category_id": 3,
+  "title": "Deep clean a 2-bedroom apartment",
+  "description": "Post-tenancy clean including kitchen and balcony.",
+  "location_address": "Westlands, Nairobi",
+  "budget_type": "fixed",
+  "budget_amount": 5000,
+  "scheduled_at": "2026-09-01T09:00:00Z"
+}
+
+@taskId = {{createTask.response.body.id}}
+
+### Open marketplace feed
+GET {{base}}/tasks?category_id=3&min_budget=1000
+Authorization: Bearer {{taskerToken}}
+
+### My tasks, with applications nested
+GET {{base}}/tasks/my
+Authorization: Bearer {{clientToken}}
+
+### Ranked taskers for this task
+POST {{base}}/tasks/{{taskId}}/matches
+Authorization: Bearer {{clientToken}}
+
+### Apply as the tasker
+# @name apply
+POST {{base}}/tasks/{{taskId}}/apply
+Content-Type: application/json
+Authorization: Bearer {{taskerToken}}
+
+{ "proposed_rate": 4500, "cover_note": "Available Saturday morning." }
+
+@applicationId = {{apply.response.body.id}}
+
+### Accept the application -- this creates the booking
+# @name accept
+PUT {{base}}/tasks/{{taskId}}/applications/{{applicationId}}/accept
+Authorization: Bearer {{clientToken}}
+
+@bookingId = {{accept.response.body.booking.id}}
+
+### Bookings I take part in, either side
+GET {{base}}/bookings
+Authorization: Bearer {{clientToken}}
+
+### Start the job (tasker only)
+PUT {{base}}/bookings/{{bookingId}}/start
+Authorization: Bearer {{taskerToken}}
+
+### Send a message
+POST {{base}}/messages/booking/{{bookingId}}
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{ "content": "On my way, about 20 minutes out." }
+
+### Read the thread (also marks it read)
+GET {{base}}/messages/booking/{{bookingId}}
+Authorization: Bearer {{taskerToken}}
+
+### Start a payment
+# @name pay
+POST {{base}}/payments/booking/{{bookingId}}/initiate
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{ "phone_number": "+254711000000" }
+
+@checkoutId = {{pay.response.body.checkout_request_id}}
+
+### Settle it the way Safaricom would (unauthenticated webhook)
+POST {{base}}/payments/mpesa/callback
+Content-Type: application/json
+
+{
+  "Body": {
+    "stkCallback": {
+      "CheckoutRequestID": "{{checkoutId}}",
+      "ResultCode": 0,
+      "ResultDesc": "The service request is processed successfully."
+    }
+  }
+}
+
+### Read the payment back
+GET {{base}}/payments/booking/{{bookingId}}
+Authorization: Bearer {{clientToken}}
+
+### Tip on top
+POST {{base}}/payments/booking/{{bookingId}}/tip
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{ "tip_amount": 500 }
+
+### Complete the job (tasker only)
+PUT {{base}}/bookings/{{bookingId}}/complete
+Authorization: Bearer {{taskerToken}}
+
+### Review -- also recalculates the tasker's avg_rating
+POST {{base}}/reviews/booking/{{bookingId}}
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{ "rating": 5, "comment": "Spotless work, arrived on time." }
+
+### Reviews for a tasker
+GET {{base}}/reviews/tasker/1
+Authorization: Bearer {{clientToken}}
+
+### Tasker: partial profile update (only what is sent changes)
+PUT {{base}}/taskers/profile
+Content-Type: application/json
+Authorization: Bearer {{taskerToken}}
+
+{ "bio": "Detail-obsessed cleaner.", "hourly_rate": 900, "skill_ids": [3, 6] }
+
+### Tasker: replace the weekly schedule
+POST {{base}}/taskers/availability
+Content-Type: application/json
+Authorization: Bearer {{taskerToken}}
+
+[
+  { "day_of_week": 1, "start_time": "08:00", "end_time": "18:00" },
+  { "day_of_week": 2, "start_time": "08:00", "end_time": "18:00" }
+]
+
+### Tasker: my bookings and applications
+GET {{base}}/taskers/me/bookings
+Authorization: Bearer {{taskerToken}}
+
+###
+GET {{base}}/taskers/me/applications
+Authorization: Bearer {{taskerToken}}

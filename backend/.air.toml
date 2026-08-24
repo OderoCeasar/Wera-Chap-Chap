@@ -5,4 +5,6 @@ tmp_dir = "tmp"
 cmd = "go build -o ./tmp/wera-api ."
 bin = "./tmp/wera-api"
 include_ext = ["go"]
-exclude_dir = ["tmp"]
+# bin/ holds `make build` output and db/sqlc is generated -- neither should
+# trigger a rebuild loop.
+exclude_dir = ["tmp", "bin"]

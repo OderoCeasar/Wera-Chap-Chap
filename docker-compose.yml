@@ -9,7 +9,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/db/migrations:/docker-entrypoint-initdb.d:ro
+      # db/migrations is deliberately NOT mounted into docker-entrypoint-initdb.d
+      # any more. Those scripts run only on a first-boot empty volume, so any
+      # migration added later was silently never applied. The backend now runs
+      # the whole chain itself through golang-migrate on every startup and
+      # records progress in a schema_migrations table.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wera} -d ${POSTGRES_DB:-wera_chap_chap}"]
       interval: 5s
@@ -17,20 +21,28 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
     environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
       PORT: 8080
       FRONTEND_ORIGIN: http://localhost:5173
       DATABASE_URL: postgres://${POSTGRES_USER:-wera}:${POSTGRES_PASSWORD:-wera}@postgres:5432/${POSTGRES_DB:-wera_chap_chap}?sslmode=disable
+      MIGRATION_URL: ${MIGRATION_URL:-file://db/migrations}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-dev}
-      ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-15}
-      REFRESH_TOKEN_HOURS: ${REFRESH_TOKEN_HOURS:-336}
+      ACCESS_TOKEN_DURATION: ${ACCESS_TOKEN_DURATION:-15m}
+      REFRESH_TOKEN_DURATION: ${REFRESH_TOKEN_DURATION:-336h}
       MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY:-}
       MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET:-}
       MPESA_SHORTCODE: ${MPESA_SHORTCODE:-}
       MPESA_PASSKEY: ${MPESA_PASSKEY:-}
+      MPESA_CALLBACK_URL: ${MPESA_CALLBACK_URL:-}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-auto}
       S3_BUCKET: ${S3_BUCKET:-wera-uploads}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
       SEED_DEMO: ${SEED_DEMO:-true}
     ports:
       - "8080:8080"

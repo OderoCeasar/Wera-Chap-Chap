@@ -5,3 +5,8 @@ tmp
 *.log
 postgres_data
 .DS_Store
+
+# Local backend configuration and build output. app.env holds secrets for
+# running outside compose; app.env.example is the tracked template.
+backend/app.env
+backend/bin/
